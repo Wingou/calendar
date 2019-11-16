@@ -19,14 +19,18 @@ type alias ZIndex =
 
 
 type alias Model =
-    { zDoor : List ZIndex
+    { selectedDoor : Int
+    , selectedImage : Int
+    , zDoor : List ZIndex
     , zImage : List ZIndex
     }
 
 
 intialModel : Model
 intialModel =
-    { zDoor = map (\r -> { id = r, z = 1 }) (range 1 25)
+    { selectedDoor = 0
+    , selectedImage = 0
+    , zDoor = map (\r -> { id = r, z = 1 }) (range 1 25)
     , zImage = map (\r -> { id = r, z = 0 }) (range 1 25)
     }
 
@@ -44,11 +48,33 @@ type Msg
     = NoOp
     | DoorOpen Int
     | DoorClose Int
+    | ZoomImage Int
+    | ResetSelectedImage Int
 
 
 
 ----------------------------
 -------- Functions ---------
+
+
+imgHeight : String
+imgHeight =
+    "120px"
+
+
+imgWidth : String
+imgWidth =
+    "120px"
+
+
+imgZoomWidth : String
+imgZoomWidth =
+    "622px"
+
+
+imgZoomHeight : String
+imgZoomHeight =
+    "642px"
 
 
 zDoorOpen : Int -> List ZIndex -> List ZIndex
@@ -103,8 +129,7 @@ displayLine column line indiceColumn model =
                         zFromId i model.zDoor
                   in
                   div []
-                    [ text (fromInt i)
-                    , displayImage i zI
+                    [ displayImage i zI
                     , displayDoor i zD
                     ]
                 ]
@@ -119,11 +144,17 @@ displayTable column line model =
 
 displayImage : Int -> Int -> Html Msg
 displayImage i z =
-    div [ style "z-index" (fromInt z), style "position" "absolute", style "width" "100px", style "height" "100px" ]
+    div
+        [ style "z-index" (fromInt z)
+        , style "position" "absolute"
+        , style "width" imgWidth
+        , style "height" imgHeight
+        , style "background-color" "WHITE"
+        ]
         [ img
-            [ onClick (DoorClose i)
-            , style "height" "100px"
-            , src ("images/" ++ fromInt i ++ ".jpg")
+            [ onClick (ZoomImage i)
+            , style "height" imgHeight
+            , src ("images/img/" ++ fromInt i ++ ".jpg")
             ]
             []
         ]
@@ -131,11 +162,11 @@ displayImage i z =
 
 displayDoor : Int -> Int -> Html Msg
 displayDoor i z =
-    div [ style "z-index" (fromInt z), style "position" "relative", style "width" "100px", style "height" "100px" ]
+    div [ style "z-index" (fromInt z), style "position" "relative", style "width" imgWidth, style "height" imgHeight ]
         [ img
             [ onClick (DoorOpen i)
-            , style "height" "100px"
-            , src "images/door.png"
+            , style "height" imgHeight
+            , src ("images/door/door" ++ fromInt i ++ ".jpg")
             ]
             []
         ]
@@ -144,6 +175,9 @@ displayDoor i z =
 
 -------- Functions ---------
 ----------------------------
+
+
+
 ----------------------------
 ------ CONSTANTES ----------
 
@@ -168,7 +202,14 @@ update msg model =
     case msg of
         DoorOpen i ->
             ( { model
-                | zImage = zDoorOpen i model.zImage
+                | selectedDoor = i
+                , zImage = zDoorOpen i model.zImage
+                , zDoor =
+                    if model.selectedDoor /= i then
+                        zDoorOpen model.selectedDoor model.zDoor
+
+                    else
+                        model.zDoor
               }
             , Cmd.none
             )
@@ -176,6 +217,21 @@ update msg model =
         DoorClose i ->
             ( { model
                 | zDoor = zDoorOpen i model.zDoor
+              }
+            , Cmd.none
+            )
+
+        ZoomImage i ->
+            ( { model
+                | selectedImage = i
+              }
+            , Cmd.none
+            )
+
+        ResetSelectedImage i ->
+            ( { model
+                | selectedImage = 0
+                , zDoor = zDoorOpen i model.zDoor
               }
             , Cmd.none
             )
@@ -190,8 +246,63 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    div []
-        [ displayTable nbColumns nbLines model ]
+    let
+        selectedImage =
+            model.selectedImage
+
+        selectedImageName =
+            fromInt selectedImage
+
+        divDisplayMode =
+            if selectedImage > 0 then
+                "block"
+
+            else
+                "none"
+    in
+    div
+        [ style "display" "flex"
+
+        -- , style "opacity" "70%"
+        , style "top" "0"
+        , style "left" "0"
+        , style "height" "800px"
+        , style "width" "100%"
+        , style "background-image" "url('/images/wallpaper.jpg')"
+        ]
+        [ ------------- GAUCHE --------------------
+          div
+            [ style "flex" "50" ]
+            []
+        , ------------- CENTRE --------------------
+          div [ style "flex" "78" ]
+            [ div [ style "display" "flex", style "flex-direction" "column" ]
+                [ div [ style "flex" "2", style "padding" "10px", style "background-color" "#ec008c", style "color" "white" ]
+                    [ text "Calendrier de l'Avent 2019 - Veepee - Media Production" ]
+                , div [ style "flex" "10" ]
+                    [ div
+                        [ style "position" "absolute" ]
+                        [ displayTable nbColumns nbLines model ]
+                    , div
+                        [ style "display" divDisplayMode
+                        , style "position" "absolute"
+                        , style "width" imgZoomWidth
+                        , style "background-color" "#ec008c"
+                        , style "z-index" "100"
+                        ]
+                        [ img
+                            [ onClick (ResetSelectedImage selectedImage)
+                            , style "width" imgZoomWidth
+                            , src ("images/img/" ++ selectedImageName ++ ".jpg")
+                            ]
+                            []
+                        ]
+                    ]
+                ]
+            ]
+        , ------------- DROITE --------------------
+          div [ style "flex" "50" ] []
+        ]
 
 
 
