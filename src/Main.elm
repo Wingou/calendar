@@ -1,37 +1,112 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, div, h1, img, table, td, text, tr)
+import Html exposing (Html, div, img, table, td, text, tr)
 import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
 import List exposing (filter, head, map, range)
-import String exposing (fromInt, toInt)
+import String exposing (fromInt)
+import Time
 
 
 
----- MODEL ----
+---------------------------------------
+----------- TYPES ---------------------
 
 
-type alias ZIndex =
-    { id : Int
-    , z : Int
-    }
+type Msg
+    = NoOp
+    | DisplayImage Int
+    | ZoomImage Int
+    | CloseImage Int
 
 
 type alias Model =
-    { selectedDoor : Int
-    , selectedImage : Int
-    , zDoor : List ZIndex
-    , zImage : List ZIndex
+    { currentCell : Cell
+    , grid : Grid
     }
+
+
+type alias Grid =
+    List Cell
+
+
+type alias Cell =
+    { id : Int
+    , visible : Visible
+    }
+
+
+type Visible
+    = Door
+    | Image
+    | Zoom
+
+
+
+---------------------------------------
+----------- CONSTANTES ----------------
+
+
+calendarHeader : String
+calendarHeader =
+    "Calendrier de l'Avent 2019 - Media Production"
+
+
+calendarFooter : String
+calendarFooter =
+    "Veepee - Novembre 2019 - ELM Avent2019"
+
+
+maxCol : Int
+maxCol =
+    5
+
+
+maxRow : Int
+maxRow =
+    5
+
+
+imgHeight : Int
+imgHeight =
+    120
+
+
+imgWidth : Int
+imgWidth =
+    120
+
+
+borderSize : Int
+borderSize =
+    2
+
+
+zoomWidth : Int
+zoomWidth =
+    maxCol * (imgWidth + 2 * borderSize) - 2 * borderSize
+
+
+
+---------------------------------------
+----------- INITIALISATION ------------
 
 
 intialModel : Model
 intialModel =
-    { selectedDoor = 0
-    , selectedImage = 0
-    , zDoor = map (\r -> { id = r, z = 1 }) (range 1 25)
-    , zImage = map (\r -> { id = r, z = 0 }) (range 1 25)
+    { currentCell =
+        { id = 0
+        , visible = Door
+        }
+    , grid =
+        map
+            (\r ->
+                { id = r
+                , visible = Door
+                }
+            )
+            (range 1 (maxCol * maxRow))
     }
 
 
@@ -41,262 +116,257 @@ init =
 
 
 
----- UPDATE ----
+---------------------------------------
+----------- HELPERS -------------------
 
 
-type Msg
-    = NoOp
-    | DoorOpen Int
-    | DoorClose Int
-    | ZoomImage Int
-    | ResetSelectedImage Int
-
-
-
-----------------------------
--------- Functions ---------
-
-
-imgHeight : String
-imgHeight =
-    "120px"
-
-
-imgWidth : String
-imgWidth =
-    "120px"
-
-
-imgZoomWidth : String
-imgZoomWidth =
-    "622px"
-
-
-imgZoomHeight : String
-imgZoomHeight =
-    "642px"
-
-
-zDoorOpen : Int -> List ZIndex -> List ZIndex
-zDoorOpen i zIndex =
-    map
-        (\zi ->
-            { zi
-                | z =
-                    if zi.id == i then
-                        zi.z + 2
-
-                    else
-                        zi.z
-            }
-        )
-        zIndex
-
-
-zFromId : Int -> List ZIndex -> Int
-zFromId i zIndex =
-    case head <| filter (\zi -> i == zi.id) zIndex of
-        Just z ->
-            z.z
+find : Int -> Grid -> Cell
+find i grid =
+    case
+        head
+            (filter
+                (\b ->
+                    b.id == i
+                )
+                grid
+            )
+    of
+        Just cell ->
+            cell
 
         Nothing ->
-            0
+            { id = 0, visible = Door }
 
 
-coord : Int -> Int -> Int
-coord column line =
-    column * nbColumns + line - nbColumns
+toId : Int -> Int -> Int
+toId col row =
+    col * maxCol + row - maxCol
 
 
-displayColumn : Int -> Int -> Model -> List (Html Msg)
-displayColumn column line model =
-    map (\r -> tr [] (displayLine column line r model)) (range 1 line)
+setCell : Int -> Visible -> Grid -> Grid
+setCell id visible grid =
+    map
+        (\cell ->
+            { cell
+                | visible =
+                    if cell.id == id then
+                        visible
+
+                    else if visible == Image then
+                        Door
+
+                    else
+                        cell.visible
+            }
+        )
+        grid
 
 
-displayLine : Int -> Int -> Int -> Model -> List (Html Msg)
-displayLine column line indiceColumn model =
+toPx : Int -> String
+toPx i =
+    fromInt i ++ "px"
+
+
+
+---------------------------------------
+----------- HTML ----------------------
+
+
+displayGrid : Int -> Int -> Model -> Visible -> Html Msg
+displayGrid column line model visible =
+    let
+        gridDisplayMode =
+            if visible == Zoom then
+                "none"
+
+            else
+                "block"
+    in
+    table [ style "display" gridDisplayMode ]
+        (displayTr column line model)
+
+
+displayTr : Int -> Int -> Model -> List (Html Msg)
+displayTr column line model =
+    map
+        (\r ->
+            tr []
+                (displayTd column line r model)
+        )
+        (range 1 line)
+
+
+displayTd : Int -> Int -> Int -> Model -> List (Html Msg)
+displayTd column line indiceColumn model =
     map
         (\r ->
             td []
                 [ let
                     i =
-                        coord indiceColumn r
+                        toId indiceColumn r
 
-                    zI =
-                        zFromId i model.zImage
-
-                    zD =
-                        zFromId i model.zDoor
+                    cell =
+                        find i model.grid
                   in
                   div []
-                    [ displayImage i zI
-                    , displayDoor i zD
+                    [ displayCell cell
                     ]
                 ]
         )
         (range 1 column)
 
 
-displayTable : Int -> Int -> Model -> Html Msg
-displayTable column line model =
-    table [] (displayColumn column line model)
+displayCell : Cell -> Html Msg
+displayCell b =
+    if b.visible == Door then
+        displayDoor b.id
+
+    else
+        displayImage b.id
 
 
-displayImage : Int -> Int -> Html Msg
-displayImage i z =
+displayImage : Int -> Html Msg
+displayImage i =
     div
-        [ style "z-index" (fromInt z)
-        , style "position" "absolute"
-        , style "width" imgWidth
-        , style "height" imgHeight
+        [ onClick (ZoomImage i)
+        , style "cursor" "pointer"
+        , style "width" (toPx imgWidth)
+        , style "height" (toPx imgHeight)
         , style "background-color" "WHITE"
         ]
         [ img
-            [ onClick (ZoomImage i)
-            , style "height" imgHeight
+            [ style "height" (toPx imgHeight)
             , src ("images/img/" ++ fromInt i ++ ".jpg")
             ]
             []
         ]
 
 
-displayDoor : Int -> Int -> Html Msg
-displayDoor i z =
-    div [ style "z-index" (fromInt z), style "position" "relative", style "width" imgWidth, style "height" imgHeight ]
-        [ img
-            [ onClick (DoorOpen i)
-            , style "height" imgHeight
-            , src ("images/door/door" ++ fromInt i ++ ".jpg")
+displayDoor : Int -> Html Msg
+displayDoor i =
+    div
+        [ style "cursor" "pointer"
+        , onClick (DisplayImage i)
+        , style "width" (toPx imgWidth)
+        , style "height" (toPx imgHeight)
+        ]
+        [ div [ style "position" "absolute" ]
+            [ img
+                [ style "height" (toPx imgHeight)
+                , src ("images/door/door" ++ fromInt i ++ ".jpg")
+                ]
+                []
             ]
-            []
+        , div
+            [ style "position" "relative"
+            , style "padding" "20px"
+            , style "color" "#ec008c"
+            , style "font-size" "50px"
+            , style "text-shadow" "white -1px 0px, white 0px -1px, white 2px 0px, white 0px 2px"
+            ]
+            [ text (fromInt i) ]
+        ]
+
+
+displayZoom : Int -> Visible -> Html Msg
+displayZoom id visible =
+    let
+        zoomDisplayMode =
+            case visible of
+                Zoom ->
+                    "block"
+
+                _ ->
+                    "none"
+    in
+    table
+        [ style "display" zoomDisplayMode
+        ]
+        [ tr []
+            [ td []
+                [ img
+                    [ style "cursor" "pointer"
+                    , onClick (CloseImage id)
+                    , src ("images/img/" ++ fromInt id ++ ".jpg")
+                    , style "width" (toPx zoomWidth)
+                    , style "background-color" "#ec008c"
+                    ]
+                    []
+                ]
+            ]
+        ]
+
+
+displayHeader : Html Msg
+displayHeader =
+    div
+        [ style "padding" "10px"
+        , style "background-color" "#ec008c"
+        , style "color" "white"
+        ]
+        [ text calendarHeader
+        ]
+
+
+displayFooter : Html Msg
+displayFooter =
+    div
+        [ style "padding" "8px"
+        , style "background-color" "#ec008c"
+        , style "color" "white"
+        ]
+        [ text calendarFooter
         ]
 
 
 
--------- Functions ---------
-----------------------------
-
-
-
-----------------------------
------- CONSTANTES ----------
-
-
-nbColumns : Int
-nbColumns =
-    5
-
-
-nbLines : Int
-nbLines =
-    5
-
-
-
------- CONSTANTES ----------
-----------------------------
-
-
-update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
-    case msg of
-        DoorOpen i ->
-            ( { model
-                | selectedDoor = i
-                , zImage = zDoorOpen i model.zImage
-                , zDoor =
-                    if model.selectedDoor /= i then
-                        zDoorOpen model.selectedDoor model.zDoor
-
-                    else
-                        model.zDoor
-              }
-            , Cmd.none
-            )
-
-        DoorClose i ->
-            ( { model
-                | zDoor = zDoorOpen i model.zDoor
-              }
-            , Cmd.none
-            )
-
-        ZoomImage i ->
-            ( { model
-                | selectedImage = i
-              }
-            , Cmd.none
-            )
-
-        ResetSelectedImage i ->
-            ( { model
-                | selectedImage = 0
-                , zDoor = zDoorOpen i model.zDoor
-              }
-            , Cmd.none
-            )
-
-        _ ->
-            ( model, Cmd.none )
-
-
-
----- VIEW ----
+---------------------------------------
+----------- VIEW ----------------------
 
 
 view : Model -> Html Msg
 view model =
     let
-        selectedImage =
-            model.selectedImage
+        cell =
+            model.currentCell
 
-        selectedImageName =
-            fromInt selectedImage
+        id =
+            cell.id
 
-        divDisplayMode =
-            if selectedImage > 0 then
-                "block"
-
-            else
-                "none"
+        visible =
+            cell.visible
     in
     div
         [ style "display" "flex"
-
-        -- , style "opacity" "70%"
-        , style "top" "0"
-        , style "left" "0"
-        , style "height" "800px"
+        , style "height" "1440px"
         , style "width" "100%"
         , style "background-image" "url('/images/wallpaper.jpg')"
         ]
         [ ------------- GAUCHE --------------------
           div
-            [ style "flex" "50" ]
+            [ style "flex" "50"
+            ]
             []
         , ------------- CENTRE --------------------
           div [ style "flex" "78" ]
-            [ div [ style "display" "flex", style "flex-direction" "column" ]
-                [ div [ style "flex" "2", style "padding" "10px", style "background-color" "#ec008c", style "color" "white" ]
-                    [ text "Calendrier de l'Avent 2019 - Veepee - Media Production" ]
-                , div [ style "flex" "10" ]
-                    [ div
-                        [ style "position" "absolute" ]
-                        [ displayTable nbColumns nbLines model ]
-                    , div
-                        [ style "display" divDisplayMode
-                        , style "position" "absolute"
-                        , style "width" imgZoomWidth
-                        , style "background-color" "#ec008c"
-                        , style "z-index" "100"
-                        ]
-                        [ img
-                            [ onClick (ResetSelectedImage selectedImage)
-                            , style "width" imgZoomWidth
-                            , src ("images/img/" ++ selectedImageName ++ ".jpg")
-                            ]
-                            []
-                        ]
+            [ div
+                [ style "margin-top" "10px"
+                , style "display" "flex"
+                , style "flex-direction" "column"
+                ]
+                [ div
+                    [ style "flex" "2"
+                    ]
+                    [ displayHeader
+                    ]
+                , div
+                    [ style "flex" "8"
+                    ]
+                    [ displayGrid maxCol maxRow model visible
+                    , displayZoom id visible
+                    ]
+                , div [ style "flex" "2" ]
+                    [ displayFooter
                     ]
                 ]
             ]
@@ -306,7 +376,54 @@ view model =
 
 
 
----- PROGRAM ----
+---------------------------------------
+----------- UPDATE --------------------
+
+
+update : Msg -> Model -> ( Model, Cmd Msg )
+update msg model =
+    case msg of
+        DisplayImage i ->
+            ( { model
+                | currentCell = { id = i, visible = Image }
+                , grid = setCell i Image model.grid
+              }
+            , Cmd.none
+            )
+
+        ZoomImage i ->
+            let
+                cell =
+                    { id = i
+                    , visible = Zoom
+                    }
+            in
+            ( { model
+                | currentCell = cell
+                , grid = setCell i Zoom model.grid
+              }
+            , Cmd.none
+            )
+
+        CloseImage i ->
+            let
+                cell =
+                    { id = i, visible = Image }
+            in
+            ( { model
+                | currentCell = cell
+                , grid = setCell i Image model.grid
+              }
+            , Cmd.none
+            )
+
+        _ ->
+            ( model, Cmd.none )
+
+
+
+---------------------------------------
+----------- PROGRAMME -----------------
 
 
 main : Program () Model Msg
