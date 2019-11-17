@@ -6,7 +6,6 @@ import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
 import List exposing (filter, head, map, range)
 import String exposing (fromInt)
-import Time
 
 
 
@@ -46,6 +45,11 @@ type Visible
 
 ---------------------------------------
 ----------- CONSTANTES ----------------
+
+
+nowDay : Int
+nowDay =
+    31
 
 
 calendarHeader : String
@@ -88,6 +92,16 @@ zoomWidth =
     maxCol * (imgWidth + 2 * borderSize) - 2 * borderSize
 
 
+colorVeepee : String
+colorVeepee =
+    "#ec008c"
+
+
+colorNotAllowed : String
+colorNotAllowed =
+    "Gray"
+
+
 
 ---------------------------------------
 ----------- INITIALISATION ------------
@@ -95,24 +109,25 @@ zoomWidth =
 
 intialModel : Model
 intialModel =
-    { currentCell =
+    Model
         { id = 0
         , visible = Door
         }
-    , grid =
-        map
+        (map
             (\r ->
                 { id = r
                 , visible = Door
                 }
             )
             (range 1 (maxCol * maxRow))
-    }
+        )
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( intialModel, Cmd.none )
+    ( intialModel
+    , Cmd.none
+    )
 
 
 
@@ -123,13 +138,12 @@ init =
 find : Int -> Grid -> Cell
 find i grid =
     case
-        head
-            (filter
+        head <|
+            filter
                 (\b ->
                     b.id == i
                 )
                 grid
-            )
     of
         Just cell ->
             cell
@@ -182,7 +196,9 @@ displayGrid column line model visible =
             else
                 "block"
     in
-    table [ style "display" gridDisplayMode ]
+    table
+        [ style "display" gridDisplayMode
+        ]
         (displayTr column line model)
 
 
@@ -244,9 +260,28 @@ displayImage i =
 
 displayDoor : Int -> Html Msg
 displayDoor i =
+    let
+        cursorPointer =
+            if i <= nowDay then
+                "pointer"
+
+            else
+                "not-allowed"
+
+        colorDay =
+            if i <= nowDay then
+                colorVeepee
+
+            else
+                colorNotAllowed
+    in
     div
-        [ style "cursor" "pointer"
-        , onClick (DisplayImage i)
+        [ style "cursor" cursorPointer
+        , if i <= nowDay then
+            onClick (DisplayImage i)
+
+          else
+            onClick NoOp
         , style "width" (toPx imgWidth)
         , style "height" (toPx imgHeight)
         ]
@@ -260,11 +295,12 @@ displayDoor i =
         , div
             [ style "position" "relative"
             , style "padding" "20px"
-            , style "color" "#ec008c"
+            , style "color" colorDay
             , style "font-size" "50px"
             , style "text-shadow" "white -1px 0px, white 0px -1px, white 2px 0px, white 0px 2px"
             ]
-            [ text (fromInt i) ]
+            [ text (fromInt i)
+            ]
         ]
 
 
@@ -289,7 +325,7 @@ displayZoom id visible =
                     , onClick (CloseImage id)
                     , src ("images/img/" ++ fromInt id ++ ".jpg")
                     , style "width" (toPx zoomWidth)
-                    , style "background-color" "#ec008c"
+                    , style "background-color" colorVeepee
                     ]
                     []
                 ]
@@ -301,7 +337,7 @@ displayHeader : Html Msg
 displayHeader =
     div
         [ style "padding" "10px"
-        , style "background-color" "#ec008c"
+        , style "background-color" colorVeepee
         , style "color" "white"
         ]
         [ text calendarHeader
@@ -312,7 +348,7 @@ displayFooter : Html Msg
 displayFooter =
     div
         [ style "padding" "8px"
-        , style "background-color" "#ec008c"
+        , style "background-color" colorVeepee
         , style "color" "white"
         ]
         [ text calendarFooter
@@ -365,7 +401,9 @@ view model =
                     [ displayGrid maxCol maxRow model visible
                     , displayZoom id visible
                     ]
-                , div [ style "flex" "2" ]
+                , div
+                    [ style "flex" "2"
+                    ]
                     [ displayFooter
                     ]
                 ]
@@ -384,10 +422,11 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         DisplayImage i ->
-            ( { model
-                | currentCell = { id = i, visible = Image }
-                , grid = setCell i Image model.grid
-              }
+            ( Model
+                { id = i
+                , visible = Image
+                }
+                (setCell i Image model.grid)
             , Cmd.none
             )
 
@@ -398,22 +437,22 @@ update msg model =
                     , visible = Zoom
                     }
             in
-            ( { model
-                | currentCell = cell
-                , grid = setCell i Zoom model.grid
-              }
+            ( Model
+                cell
+                (setCell i Zoom model.grid)
             , Cmd.none
             )
 
         CloseImage i ->
             let
                 cell =
-                    { id = i, visible = Image }
+                    { id = i
+                    , visible = Image
+                    }
             in
-            ( { model
-                | currentCell = cell
-                , grid = setCell i Image model.grid
-              }
+            ( Model
+                cell
+                (setCell i Image model.grid)
             , Cmd.none
             )
 
