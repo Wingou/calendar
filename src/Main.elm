@@ -6,7 +6,8 @@ import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
 import List exposing (filter, head, map, range)
 import String exposing (fromInt)
-
+import Time exposing (..)
+import Task
 
 
 ---------------------------------------
@@ -18,10 +19,14 @@ type Msg
     | DisplayImage Int
     | ZoomImage Int
     | CloseImage Int
+    | Tick Time.Posix
+    | AdjustTimeZone Time.Zone
 
 
 type alias Model =
-    { currentCell : Cell
+    {
+        currentDate : { zone : Time.Zone, time: Time.Posix }
+        , currentCell : Cell
     , grid : Grid
     }
 
@@ -45,12 +50,6 @@ type Visible
 
 ---------------------------------------
 ----------- CONSTANTES ----------------
-
-
-nowDay : Int
-nowDay =
-    31
-
 
 calendarHeader : String
 calendarHeader =
@@ -94,7 +93,7 @@ zoomWidth =
 
 colorVeepee : String
 colorVeepee =
-    "#ec008c"
+          "#ec008c"
 
 
 colorNotAllowed : String
@@ -110,6 +109,10 @@ colorNotAllowed =
 intialModel : Model
 intialModel =
     Model
+        {
+            zone = Time.utc ,
+            time = (Time.millisToPosix 0)
+        }
         { id = 0
         , visible = Door
         }
@@ -126,7 +129,7 @@ intialModel =
 init : ( Model, Cmd Msg )
 init =
     ( intialModel
-    , Cmd.none
+    , Task.perform AdjustTimeZone Time.here
     )
 
 
@@ -223,19 +226,25 @@ displayTd column line indiceColumn model =
 
                     cell =
                         find i model.grid
+
+                    date = model.currentDate
+        
+                    zone = date.zone
+                        
+                    time= date.time
                   in
                   div []
-                    [ displayCell cell
+                    [ displayCell cell (Time.toDay zone time)
                     ]
                 ]
         )
         (range 1 column)
 
 
-displayCell : Cell -> Html Msg
-displayCell b =
+displayCell : Cell -> Int -> Html Msg
+displayCell b nowDay =
     if b.visible == Door then
-        displayDoor b.id
+        displayDoor b.id nowDay
 
     else
         displayImage b.id
@@ -258,8 +267,8 @@ displayImage i =
         ]
 
 
-displayDoor : Int -> Html Msg
-displayDoor i =
+displayDoor : Int -> Int -> Html Msg
+displayDoor i nowDay =
     let
         cursorPointer =
             if i <= nowDay then
@@ -371,6 +380,15 @@ view model =
 
         visible =
             cell.visible
+
+        date = 
+            model.currentDate
+        
+        zone = 
+            date.zone
+            
+        time= 
+            date.time
     in
     div
         [ style "display" "flex"
@@ -393,7 +411,7 @@ view model =
                 [ div
                     [ style "flex" "2"
                     ]
-                    [ displayHeader
+                    [ displayHeader                        
                     ]
                 , div
                     [ style "flex" "8"
@@ -412,6 +430,10 @@ view model =
           div [ style "flex" "50" ] []
         ]
 
+subscriptions : Model -> Sub Msg
+subscriptions model =
+        Time.every 1000 Tick
+
 
 
 ---------------------------------------
@@ -422,11 +444,12 @@ update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
         DisplayImage i ->
-            ( Model
-                { id = i
+            ( { model | 
+                currentCell = { id = i
                 , visible = Image
+                },
+                grid = (setCell i Image model.grid)
                 }
-                (setCell i Image model.grid)
             , Cmd.none
             )
 
@@ -437,9 +460,11 @@ update msg model =
                     , visible = Zoom
                     }
             in
-            ( Model
-                cell
-                (setCell i Zoom model.grid)
+            ( {model |
+                currentCell =    cell,
+                grid = (setCell i Zoom model.grid)
+             }
+                
             , Cmd.none
             )
 
@@ -450,11 +475,30 @@ update msg model =
                     , visible = Image
                     }
             in
-            ( Model
-                cell
-                (setCell i Image model.grid)
+            ( { model | 
+                currentCell = cell, 
+                grid = (setCell i Image model.grid)
+            }
             , Cmd.none
             )
+
+        Tick newTime ->
+            let
+                date = model.currentDate
+                new = { date | time = newTime}
+            in
+                    ( { model | currentDate = new }
+                    , Cmd.none
+                    )
+
+        AdjustTimeZone newZone ->
+            let
+                date = model.currentDate
+                new = { date | zone = newZone}
+            in
+                    ( { model | currentDate = new }
+                    , Cmd.none
+                    )
 
         _ ->
             ( model, Cmd.none )
@@ -471,5 +515,5 @@ main =
         { view = view
         , init = \_ -> init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = subscriptions
         }
