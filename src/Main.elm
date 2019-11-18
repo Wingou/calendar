@@ -1,7 +1,7 @@
 module Main exposing (..)
 
 import Browser
-import Html exposing (Html, div, img, table, td, text, tr)
+import Html exposing (Html, a, div, img, table, td, text, tr)
 import Html.Attributes exposing (src, style)
 import Html.Events exposing (onClick)
 import List exposing (filter, head, map, range)
@@ -20,12 +20,13 @@ type Msg
     | DisplayImage Int
     | ZoomImage Int
     | CloseImage Int
-    | Tick Time.Posix
-    | AdjustTimeZone Time.Zone
+    | NewTime Time.Posix
+    | Magic
 
 
 type alias Model =
-    { currentDate : { zone : Time.Zone, time : Time.Posix }
+    { magic : Bool
+    , currentDate : { zone : Time.Zone, time : Time.Posix }
     , currentCell : Cell
     , grid : Grid
     }
@@ -59,7 +60,7 @@ calendarHeader =
 
 calendarFooter : String
 calendarFooter =
-    "Veepee - Novembre 2019 - ELM AventCalendar2019"
+    "Veepee - Novembre 2019 - ELM AventCalendar"
 
 
 maxCol : Int
@@ -110,6 +111,7 @@ colorNotAllowed =
 intialModel : Model
 intialModel =
     Model
+        False
         { zone = Time.utc
         , time = Time.millisToPosix 0
         }
@@ -129,8 +131,13 @@ intialModel =
 init : ( Model, Cmd Msg )
 init =
     ( intialModel
-    , Task.perform AdjustTimeZone Time.here
+    , getNewTime
     )
+
+
+getNewTime : Cmd Msg
+getNewTime =
+    Task.perform NewTime Time.now
 
 
 
@@ -235,19 +242,22 @@ displayTd column line indiceColumn model =
 
                     time =
                         date.time
+
+                    magic =
+                        model.magic
                   in
                   div []
-                    [ displayCell cell (Time.toDay zone time)
+                    [ displayCell cell (Time.toDay zone time) magic
                     ]
                 ]
         )
         (range 1 column)
 
 
-displayCell : Cell -> Int -> Html Msg
-displayCell b nowDay =
+displayCell : Cell -> Int -> Bool -> Html Msg
+displayCell b nowDay magic =
     if b.visible == Door then
-        displayDoor b.id nowDay
+        displayDoor b.id nowDay magic
 
     else
         displayImage b.id
@@ -270,18 +280,18 @@ displayImage i =
         ]
 
 
-displayDoor : Int -> Int -> Html Msg
-displayDoor i nowDay =
+displayDoor : Int -> Int -> Bool -> Html Msg
+displayDoor i nowDay magic =
     let
         cursorPointer =
-            if i <= nowDay then
+            if i <= nowDay || magic then
                 "pointer"
 
             else
                 "not-allowed"
 
         colorDay =
-            if i <= nowDay then
+            if i <= nowDay || magic then
                 colorVeepee
 
             else
@@ -289,7 +299,7 @@ displayDoor i nowDay =
     in
     div
         [ style "cursor" cursorPointer
-        , if i <= nowDay then
+        , if i <= nowDay || magic then
             onClick (DisplayImage i)
 
           else
@@ -364,6 +374,12 @@ displayFooter =
         , style "color" "white"
         ]
         [ text calendarFooter
+        , a
+            [ style "cursor" "pointer"
+            , onClick Magic
+            ]
+            [ text "2019"
+            ]
         ]
 
 
@@ -436,7 +452,7 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Time.every (3600 * 1000) Tick
+    Sub.none
 
 
 
@@ -486,7 +502,7 @@ update msg model =
             , Cmd.none
             )
 
-        Tick newTime ->
+        NewTime newTime ->
             let
                 date =
                     model.currentDate
@@ -502,18 +518,9 @@ update msg model =
             , Cmd.none
             )
 
-        AdjustTimeZone newZone ->
-            let
-                date =
-                    model.currentDate
-
-                new =
-                    { date
-                        | zone = newZone
-                    }
-            in
+        Magic ->
             ( { model
-                | currentDate = new
+                | magic = not model.magic
               }
             , Cmd.none
             )
