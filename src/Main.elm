@@ -274,7 +274,7 @@ displayImage i =
         ]
         [ img
             [ style "height" (toPx imgHeight)
-            , src ("images/img/" ++ fromInt i ++ ".jpg")
+            , src ("images/img120/" ++ fromInt i ++ ".jpg")
             ]
             []
         ]
@@ -310,7 +310,7 @@ displayDoor i nowDay magic =
         [ div [ style "position" "absolute" ]
             [ img
                 [ style "height" (toPx imgHeight)
-                , src ("images/door/door" ++ fromInt i ++ ".jpg")
+                , src ("images/door120/door" ++ fromInt i ++ ".jpg")
                 ]
                 []
             ]
@@ -345,7 +345,7 @@ displayZoom id visible =
                 [ img
                     [ style "cursor" "pointer"
                     , onClick (CloseImage id)
-                    , src ("images/img/" ++ fromInt id ++ ".jpg")
+                    , src ("images/img000/" ++ fromInt id ++ ".jpg")
                     , style "width" (toPx zoomWidth)
                     , style "background-color" colorVeepee
                     ]
